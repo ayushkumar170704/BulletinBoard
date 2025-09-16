@@ -2,9 +2,9 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>3D Infinite Bulletin Board</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <div class="canvas" id="canvas"></div>
@@ -12,10 +12,37 @@
     <div class="controls" id="controls">
         <div>🖱️ Drag to pan • 🔍 Scroll to zoom</div>
         <div>📋 Ctrl+V to paste • ❌ Hover to delete</div>
+        <div class="mobile-hint">📱 Long press to add content</div>
     </div>
     
     <div class="zoom-indicator" id="zoomIndicator">Zoom: 100%</div>
     <div class="paste-indicator" id="pasteIndicator">Paste anything here (Ctrl+V)</div>
+    
+    <!-- Mobile Add Content Modal -->
+    <div class="mobile-modal" id="mobileModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Add Content</h3>
+                <button class="close-btn" id="closeModal">×</button>
+            </div>
+            <div class="modal-body">
+                <textarea id="contentInput" placeholder="Enter text, URL, or YouTube link..."></textarea>
+                <div class="file-input-container">
+                    <input type="file" id="imageInput" accept="image/*">
+                    <label for="imageInput" class="file-input-label">
+                        📷 Choose Image
+                    </label>
+                </div>
+                <div class="modal-buttons">
+                    <button id="addContent" class="add-btn">Add Content</button>
+                    <button id="cancelModal" class="cancel-btn">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Mobile Touch Indicator -->
+    <div class="touch-indicator" id="touchIndicator">+</div>
 
     <script src="script.js"></script>
 </body>
