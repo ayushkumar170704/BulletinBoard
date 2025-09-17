@@ -128,7 +128,6 @@ document.addEventListener('touchstart', (e) => {
     // Start long press timer for canvas touch
     if (e.target === document.body || e.target === canvas) {
         longPressTimer = setTimeout(async () => {
-            showLongPressIndicator(touch.clientX, touch.clientY);
             longPressStarted = true;
             modalPosition.x = lastMousePosition.x;
             modalPosition.y = lastMousePosition.y;
@@ -165,7 +164,6 @@ document.addEventListener('touchmove', (e) => {
     if ((deltaX > 15 || deltaY > 15) && longPressTimer) {
         clearTimeout(longPressTimer);
         longPressTimer = null;
-        hideLongPressIndicator();
     }
     
     // Handle item dragging
@@ -205,7 +203,6 @@ document.addEventListener('touchend', (e) => {
     // Handle long press completion
     if (longPressStarted) {
         longPressStarted = false;
-        setTimeout(() => hideLongPressIndicator(), 1000);
         e.preventDefault();
         return;
     }
@@ -238,7 +235,6 @@ async function tryPasteClipboard() {
                         const reader = new FileReader();
                         reader.onload = (event) => {
                             createImageItem(event.target.result, modalPosition.x, modalPosition.y);
-                            showPasteSuccess('Image pasted!');
                         };
                         reader.readAsDataURL(blob);
                         return;
@@ -251,7 +247,6 @@ async function tryPasteClipboard() {
                     const text = await blob.text();
                     if (text.trim()) {
                         createTextItem(text, modalPosition.x, modalPosition.y);
-                        showPasteSuccess('Text pasted!');
                         return;
                     }
                 }
@@ -261,7 +256,6 @@ async function tryPasteClipboard() {
             const text = await navigator.clipboard.readText();
             if (text.trim()) {
                 createTextItem(text, modalPosition.x, modalPosition.y);
-                showPasteSuccess('Text pasted!');
                 return;
             }
         }
@@ -274,23 +268,6 @@ async function tryPasteClipboard() {
         // Show fallback modal for manual input
         showFallbackModal();
     }
-}
-
-// Show success message
-function showPasteSuccess(message) {
-    pasteIndicator.textContent = message;
-    pasteIndicator.classList.add('show');
-    pasteIndicator.style.background = 'rgba(0, 150, 0, 0.9)';
-    pasteIndicator.style.color = 'white';
-    
-    setTimeout(() => {
-        pasteIndicator.classList.remove('show');
-        setTimeout(() => {
-            pasteIndicator.textContent = 'Paste anything here (Ctrl+V)';
-            pasteIndicator.style.background = 'rgba(255, 255, 255, 0.9)';
-            pasteIndicator.style.color = '#666';
-        }, 300);
-    }, 2000);
 }
 
 // Show fallback modal when clipboard access fails
@@ -318,7 +295,7 @@ document.addEventListener('gesturestart', (e) => {
 document.addEventListener('wheel', (e) => {
     e.preventDefault();
     
-    const zoomIntensity = 0.1;
+    const zoomIntensity = 0.05; // Reduced from 0.1 to make zoom slower
     const zoomFactor = e.deltaY < 0 ? 1 + zoomIntensity : 1 - zoomIntensity;
     
     // Get mouse position relative to viewport
