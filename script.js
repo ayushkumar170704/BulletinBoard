@@ -22,6 +22,11 @@ let touchStartPos = { x: 0, y: 0 };
 let lastTouchPos = { x: 0, y: 0 };
 let modalPosition = { x: 0, y: 0 };
 
+// Check if device is mobile
+const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
+                  ('ontouchstart' in window) || 
+                  (navigator.maxTouchPoints > 0);
+
 // Initialize app
 window.addEventListener('load', () => {
     controls.classList.add('show');
@@ -122,11 +127,20 @@ document.addEventListener('touchstart', (e) => {
     
     // Start long press timer for canvas touch
     if (e.target === document.body || e.target === canvas) {
-        longPressTimer = setTimeout(() => {
+        longPressTimer = setTimeout(async () => {
             showLongPressIndicator(touch.clientX, touch.clientY);
             longPressStarted = true;
             modalPosition.x = lastMousePosition.x;
             modalPosition.y = lastMousePosition.y;
+            
+            // Vibrate if available
+            if (navigator.vibrate) {
+                navigator.vibrate(50);
+            }
+            
+            // Try to paste clipboard content directly
+            await tryPasteClipboard();
+            
         }, 500);
         
         // Start panning
@@ -148,7 +162,7 @@ document.addEventListener('touchmove', (e) => {
     lastMousePosition.y = (touch.clientY - rect.top) / scale;
     
     // Cancel long press if moved too much
-    if ((deltaX > 10 || deltaY > 10) && longPressTimer) {
+    if ((deltaX > 15 || deltaY > 15) && longPressTimer) {
         clearTimeout(longPressTimer);
         longPressTimer = null;
         hideLongPressIndicator();
@@ -166,7 +180,7 @@ document.addEventListener('touchmove', (e) => {
     }
     
     // Handle canvas panning
-    if (isPanning && !draggedElement) {
+    if (isPanning && !draggedElement && !longPressStarted) {
         const deltaX = touch.clientX - panStart.x;
         const deltaY = touch.clientY - panStart.y;
         
@@ -191,8 +205,7 @@ document.addEventListener('touchend', (e) => {
     // Handle long press completion
     if (longPressStarted) {
         longPressStarted = false;
-        hideLongPressIndicator();
-        showMobileModal();
+        setTimeout(() => hideLongPressIndicator(), 1000);
         e.preventDefault();
         return;
     }
@@ -209,6 +222,86 @@ document.addEventListener('touchend', (e) => {
         draggedElement = null;
     }
 }, { passive: false });
+
+// Function to try pasting clipboard content
+async function tryPasteClipboard() {
+    try {
+        if (navigator.clipboard && navigator.clipboard.read) {
+            // Try to read all clipboard items
+            const clipboardItems = await navigator.clipboard.read();
+            
+            for (const clipboardItem of clipboardItems) {
+                // Handle images
+                for (const type of clipboardItem.types) {
+                    if (type.startsWith('image/')) {
+                        const blob = await clipboardItem.getType(type);
+                        const reader = new FileReader();
+                        reader.onload = (event) => {
+                            createImageItem(event.target.result, modalPosition.x, modalPosition.y);
+                            showPasteSuccess('Image pasted!');
+                        };
+                        reader.readAsDataURL(blob);
+                        return;
+                    }
+                }
+                
+                // Handle text
+                if (clipboardItem.types.includes('text/plain')) {
+                    const blob = await clipboardItem.getType('text/plain');
+                    const text = await blob.text();
+                    if (text.trim()) {
+                        createTextItem(text, modalPosition.x, modalPosition.y);
+                        showPasteSuccess('Text pasted!');
+                        return;
+                    }
+                }
+            }
+        } else if (navigator.clipboard && navigator.clipboard.readText) {
+            // Fallback to readText for text content only
+            const text = await navigator.clipboard.readText();
+            if (text.trim()) {
+                createTextItem(text, modalPosition.x, modalPosition.y);
+                showPasteSuccess('Text pasted!');
+                return;
+            }
+        }
+        
+        // If no clipboard content found or clipboard API unavailable
+        showFallbackModal();
+        
+    } catch (err) {
+        console.log('Clipboard access failed:', err);
+        // Show fallback modal for manual input
+        showFallbackModal();
+    }
+}
+
+// Show success message
+function showPasteSuccess(message) {
+    pasteIndicator.textContent = message;
+    pasteIndicator.classList.add('show');
+    pasteIndicator.style.background = 'rgba(0, 150, 0, 0.9)';
+    pasteIndicator.style.color = 'white';
+    
+    setTimeout(() => {
+        pasteIndicator.classList.remove('show');
+        setTimeout(() => {
+            pasteIndicator.textContent = 'Paste anything here (Ctrl+V)';
+            pasteIndicator.style.background = 'rgba(255, 255, 255, 0.9)';
+            pasteIndicator.style.color = '#666';
+        }, 300);
+    }, 2000);
+}
+
+// Show fallback modal when clipboard access fails
+function showFallbackModal() {
+    showMobileModal();
+    // Update modal text to indicate manual input needed
+    const modalTitle = mobileModal.querySelector('h3');
+    if (modalTitle) {
+        modalTitle.textContent = 'Add Content (Manual Input)';
+    }
+}
 
 // Prevent default touch behaviors
 document.addEventListener('touchstart', (e) => {
@@ -292,55 +385,81 @@ function showLongPressIndicator(x, y) {
     touchIndicator.style.top = `${y - 30}px`;
     touchIndicator.classList.add('show');
     touchIndicator.classList.add('pulse');
+    touchIndicator.textContent = 'Pasting...';
 }
 
 function hideLongPressIndicator() {
     touchIndicator.classList.remove('show');
     touchIndicator.classList.remove('pulse');
+    touchIndicator.textContent = 'Long press to paste';
 }
 
-// Mobile modal functions
+// Mobile modal functions (fallback)
 function showMobileModal() {
-    mobileModal.classList.add('show');
-    document.getElementById('contentInput').focus();
+    if (mobileModal) {
+        mobileModal.classList.add('show');
+        const contentInput = document.getElementById('contentInput');
+        if (contentInput) {
+            contentInput.focus();
+        }
+    }
 }
 
 function hideMobileModal() {
-    mobileModal.classList.remove('show');
-    document.getElementById('contentInput').value = '';
-    document.getElementById('imageInput').value = '';
+    if (mobileModal) {
+        mobileModal.classList.remove('show');
+        const contentInput = document.getElementById('contentInput');
+        const imageInput = document.getElementById('imageInput');
+        if (contentInput) contentInput.value = '';
+        if (imageInput) imageInput.value = '';
+        
+        // Reset modal title
+        const modalTitle = mobileModal.querySelector('h3');
+        if (modalTitle) {
+            modalTitle.textContent = 'Add Content';
+        }
+    }
 }
 
 // Modal event listeners
-document.getElementById('closeModal').addEventListener('click', hideMobileModal);
-document.getElementById('cancelModal').addEventListener('click', hideMobileModal);
+if (document.getElementById('closeModal')) {
+    document.getElementById('closeModal').addEventListener('click', hideMobileModal);
+}
+if (document.getElementById('cancelModal')) {
+    document.getElementById('cancelModal').addEventListener('click', hideMobileModal);
+}
 
-document.getElementById('addContent').addEventListener('click', () => {
-    const content = document.getElementById('contentInput').value.trim();
-    const imageInput = document.getElementById('imageInput');
-    
-    if (imageInput.files.length > 0) {
-        // Handle image
-        const file = imageInput.files[0];
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            createImageItem(event.target.result, modalPosition.x, modalPosition.y);
-        };
-        reader.readAsDataURL(file);
-    } else if (content) {
-        // Handle text content
-        createTextItem(content, modalPosition.x, modalPosition.y);
-    }
-    
-    hideMobileModal();
-});
+if (document.getElementById('addContent')) {
+    document.getElementById('addContent').addEventListener('click', () => {
+        const contentInput = document.getElementById('contentInput');
+        const imageInput = document.getElementById('imageInput');
+        const content = contentInput ? contentInput.value.trim() : '';
+        
+        if (imageInput && imageInput.files.length > 0) {
+            // Handle image
+            const file = imageInput.files[0];
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                createImageItem(event.target.result, modalPosition.x, modalPosition.y);
+            };
+            reader.readAsDataURL(file);
+        } else if (content) {
+            // Handle text content
+            createTextItem(content, modalPosition.x, modalPosition.y);
+        }
+        
+        hideMobileModal();
+    });
+}
 
 // Click outside modal to close
-mobileModal.addEventListener('click', (e) => {
-    if (e.target === mobileModal) {
-        hideMobileModal();
-    }
-});
+if (mobileModal) {
+    mobileModal.addEventListener('click', (e) => {
+        if (e.target === mobileModal) {
+            hideMobileModal();
+        }
+    });
+}
 
 function updateCanvasTransform() {
     canvas.style.transform = `translate(${canvasOffset.x}px, ${canvasOffset.y}px) scale(${scale})`;
@@ -514,7 +633,7 @@ function escapeHtml(text) {
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
         // Close modal if open
-        if (mobileModal.classList.contains('show')) {
+        if (mobileModal && mobileModal.classList.contains('show')) {
             hideMobileModal();
             return;
         }
